@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>TeleFi – DeFi Exchange for Telegram</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="logo"><span class="logo-icon" aria-hidden="true">⚡</span>TeleFi</div>
+    <button class="btn btn-sm" id="walletBtn" type="button">Connect</button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="badge"><span class="dot" aria-hidden="true"></span>Built for Telegram</p>
+      <h1>Trade crypto<br><span class="grad">inside Telegram</span></h1>
+      <p class="subtitle">Swap, earn and bridge assets without leaving your chats.</p>
+      <div class="cta">
+        <button class="btn" type="button" data-action="swap">Start Trading</button>
+        <button class="btn btn-ghost" type="button" data-action="earn">Earn Yield</button>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="statsTitle">
+      <h2 class="section-title" id="statsTitle">Platform stats <span class="tag" id="sampleTag" hidden>Sample data</span></h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="section" aria-labelledby="featTitle">
+      <h2 class="section-title" id="featTitle">Core features</h2>
+      <div class="features">
+        <button class="card feature" type="button" data-action="swap"><span class="f-icon" aria-hidden="true">🔄</span><b>Instant Swap</b><small>Best available rates</small></button>
+        <button class="card feature" type="button" data-action="liquidity"><span class="f-icon" aria-hidden="true">💧</span><b>Liquidity</b><small>Provide and earn fees</small></button>
+        <button class="card feature" type="button" data-action="earn"><span class="f-icon" aria-hidden="true">📈</span><b>Earn</b><small>Put idle assets to work</small></button>
+        <button class="card feature" type="button" data-action="bridge"><span class="f-icon" aria-hidden="true">🌉</span><b>Bridge</b><small>Move across chains</small></button>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="pairsTitle">
+      <h2 class="section-title" id="pairsTitle">Trending pairs</h2>
+      <div class="pairs" id="pairs"></div>
+    </section>
+
+    <p class="footnote">Powered by TON · Crypto assets are volatile. Trade at your own risk.</p>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
