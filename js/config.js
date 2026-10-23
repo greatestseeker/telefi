@@ -5,7 +5,7 @@ window.CONFIG = {
   apiUrl: null,
   useSampleData: true,
   // Public, keyless market feed used when apiUrl is not set.
-  marketDataUrl: 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,the-open-network&order=market_cap_desc&sparkline=false&price_change_percentage=24h',
+  marketDataUrl: 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,the-open-network&order=market_cap_desc&sparkline=true&price_change_percentage=24h',
   marketSyncIntervalMs: 60000,
   // Your bot's Mini App link, used to return users to the app after wallet approval.
   botUrl: 'https://t.me/YOUR_BOT/YOUR_APP',

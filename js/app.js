@@ -3,6 +3,7 @@
   const tg = window.Telegram?.WebApp;
   const inTelegram = Boolean(tg && tg.initData);
   const $ = (sel) => document.querySelector(sel);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---------- helpers ---------- */
   function el(tag, cls, text) {
@@ -56,10 +57,19 @@
   let tonUI = null;
   function short(addr) { return addr.slice(0, 4) + '…' + addr.slice(-4); }
   function renderWallet(wallet) {
-    if (!wallet) { walletBtn.textContent = 'Connect'; return; }
-    let addr = wallet.account.address;
-    try { addr = window.TON_CONNECT_UI.toUserFriendlyAddress(addr); } catch (_) {}
-    walletBtn.textContent = short(addr);
+    let label = 'Connect';
+    if (wallet) {
+      let addr = wallet.account.address;
+      try { addr = window.TON_CONNECT_UI.toUserFriendlyAddress(addr); } catch (_) {}
+      label = short(addr);
+    }
+    walletBtn.classList.toggle('connected', Boolean(wallet));
+    walletBtn.classList.remove('wallet-pop');
+    walletBtn.textContent = label;
+    if (!reduceMotion) {
+      void walletBtn.offsetWidth;
+      walletBtn.classList.add('wallet-pop');
+    }
   }
   function initWallet() {
     if (!window.TON_CONNECT_UI) return;
@@ -87,6 +97,7 @@
   let marketTimer;
   let lastMarketSync = null;
   let loadingMarkets = false;
+  const lastPrices = new Map();
 
   const icon = (sym) => {
     const n = el('span', 'ico', GLYPH[sym] || sym.charAt(0));
@@ -122,8 +133,47 @@
       quote: 'USD',
       volume: compactUsd.format(Number(coin.total_volume) || 0),
       price: priceUsd.format(Number(coin.current_price) || 0),
+      numericPrice: Number(coin.current_price) || 0,
+      sparkline: coin.sparkline_in_7d?.price || [],
       change: Number(coin.price_change_percentage_24h) || 0
     }));
+  }
+
+  function sparkline(values, isUp) {
+    if (!Array.isArray(values) || values.length < 2) return null;
+    const width = 92;
+    const height = 32;
+    const min = Math.min(...values);
+    const range = Math.max(...values) - min || 1;
+    const points = values.map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y = height - ((value - min) / range) * (height - 4) - 2;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', `pair-chart ${isUp ? 'up' : 'down'}`);
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('aria-hidden', 'true');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    line.setAttribute('points', points);
+    svg.append(line);
+    return svg;
+  }
+
+  function animatePrice(node, from, to) {
+    if (reduceMotion || !Number.isFinite(from) || from === to) {
+      node.textContent = priceUsd.format(to);
+      return;
+    }
+    const started = performance.now();
+    const duration = 450;
+    const tick = (now) => {
+      const progress = Math.min(1, (now - started) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      node.textContent = priceUsd.format(from + (to - from) * eased);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   function renderStats(stats) {
@@ -138,10 +188,11 @@
   function renderPairs(pairs) {
     const box = $('#pairs');
     if (!pairs.length) return box.replaceChildren(el('p', 'empty', 'No pairs to show yet.'));
-    box.replaceChildren(...pairs.map((p) => {
+    box.replaceChildren(...pairs.map((p, index) => {
       const row = el('button', 'pair');
       row.type = 'button';
       row.dataset.action = 'swap';
+      row.style.setProperty('--row-index', index);
       const icons = el('span', 'icons');
       icons.append(icon(p.base), icon(p.quote));
       const name = el('div');
@@ -151,9 +202,23 @@
       const right = el('div', 'pair-r');
       const change = Number(p.change);
       const up = change >= 0;
-      right.append(el('b', '', p.price),
-        el('small', up ? 'up' : 'down', `${up ? '+' : ''}${change.toFixed(2)}%`));
-      row.append(left, right);
+      const currentPrice = Number.isFinite(p.numericPrice)
+        ? p.numericPrice
+        : Number(String(p.price).replace(/[^0-9.-]/g, ''));
+      const previousPrice = lastPrices.get(p.base);
+      const price = el('b', 'price-value', p.price);
+      if (Number.isFinite(currentPrice)) {
+        animatePrice(price, previousPrice, currentPrice);
+        lastPrices.set(p.base, currentPrice);
+      }
+      if (Number.isFinite(previousPrice) && currentPrice !== previousPrice) {
+        row.classList.add(currentPrice > previousPrice ? 'price-tick-up' : 'price-tick-down');
+      }
+      right.append(price, el('small', up ? 'up' : 'down', `${up ? '+' : ''}${change.toFixed(2)}%`));
+      const chart = sparkline(p.sparkline, up);
+      row.append(left);
+      if (chart) row.append(chart);
+      row.append(right);
       return row;
     }));
   }
