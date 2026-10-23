@@ -79,11 +79,52 @@
   /* ---------- data + rendering ---------- */
   const COLORS = { USDT: '#26A17B', ETH: '#627EEA', BTC: '#F7931A', TON: '#0088CC' };
   const GLYPH = { USDT: '₮', ETH: 'Ξ', BTC: '₿', TON: 'T' };
+  const SYMBOLS = { bitcoin: 'BTC', ethereum: 'ETH', 'the-open-network': 'TON' };
+  const marketStatus = $('#marketStatus');
+  const marketStatusText = $('#marketStatusText');
+  const marketUpdated = $('#marketUpdated');
+  const refreshMarkets = $('#refreshMarkets');
+  let marketTimer;
+  let lastMarketSync = null;
+  let loadingMarkets = false;
+
   const icon = (sym) => {
     const n = el('span', 'ico', GLYPH[sym] || sym.charAt(0));
     n.style.background = COLORS[sym] || '#475569';
     return n;
   };
+
+  const compactUsd = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 1
+  });
+  const priceUsd = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  function setMarketStatus(state, text) {
+    marketStatus.dataset.state = state;
+    marketStatusText.textContent = text;
+  }
+
+  function formatSyncTime(date) {
+    return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(date);
+  }
+
+  function normalizeMarketData(coins) {
+    return coins.map((coin) => ({
+      base: SYMBOLS[coin.id] || String(coin.symbol || '').toUpperCase(),
+      quote: 'USD',
+      volume: compactUsd.format(Number(coin.total_volume) || 0),
+      price: priceUsd.format(Number(coin.current_price) || 0),
+      change: Number(coin.price_change_percentage_24h) || 0
+    }));
+  }
 
   function renderStats(stats) {
     const box = $('#stats');
@@ -108,36 +149,86 @@
       const left = el('div', 'pair-l');
       left.append(icons, name);
       const right = el('div', 'pair-r');
-      const up = Number(p.change) >= 0;
+      const change = Number(p.change);
+      const up = change >= 0;
       right.append(el('b', '', p.price),
-        el('small', up ? 'up' : 'down', `${up ? '+' : ''}${Number(p.change).toFixed(1)}%`));
+        el('small', up ? 'up' : 'down', `${up ? '+' : ''}${change.toFixed(2)}%`));
       row.append(left, right);
       return row;
     }));
   }
 
-  async function loadData() {
-    $('#stats').replaceChildren(...[1, 2, 3].map(() => el('div', 'skeleton')));
-    $('#pairs').replaceChildren(el('div', 'skeleton'), el('div', 'skeleton'));
+  function scheduleMarketSync() {
+    clearTimeout(marketTimer);
+    marketTimer = setTimeout(loadData, Math.max(15000, Number(CONFIG.marketSyncIntervalMs) || 60000));
+  }
+
+  async function loadData({ manual = false } = {}) {
+    if (loadingMarkets) return;
+    loadingMarkets = true;
+    refreshMarkets.disabled = true;
+    refreshMarkets.classList.add('is-loading');
+    setMarketStatus('syncing', manual ? 'Refreshing' : 'Syncing');
+    if (!lastMarketSync) {
+      $('#stats').replaceChildren(...[1, 2, 3].map(() => el('div', 'skeleton')));
+      $('#pairs').replaceChildren(el('div', 'skeleton'), el('div', 'skeleton'));
+    }
     try {
-      let data;
+      let stats = SAMPLE.stats;
+      let pairs;
       if (CONFIG.apiUrl) {
         const res = await fetch(CONFIG.apiUrl, { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        data = await res.json();
-      } else if (CONFIG.useSampleData) {
-        data = SAMPLE;
-        $('#sampleTag').hidden = false;      // sample figures are always labelled
+        const data = await res.json();
+        stats = data.stats || [];
+        pairs = data.pairs || [];
+        $('#sampleTag').hidden = true;
       } else {
-        data = { stats: [], pairs: [] };
+        const res = await fetch(CONFIG.marketDataUrl, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        pairs = normalizeMarketData(await res.json());
+        $('#sampleTag').hidden = false;      // platform stats remain sample figures
       }
-      renderStats(data.stats?.length ? data.stats : [{ label: 'TVL', value: '—' }, { label: '24h Volume', value: '—' }, { label: 'Users', value: '—' }]);
-      renderPairs(data.pairs || []);
+      renderStats(stats.length ? stats : [{ label: 'TVL', value: '—' }, { label: '24h Volume', value: '—' }, { label: 'Users', value: '—' }]);
+      renderPairs(pairs);
+      lastMarketSync = new Date();
+      setMarketStatus('live', 'Live');
+      marketUpdated.textContent = `Updated ${formatSyncTime(lastMarketSync)} · Auto-refreshes every minute`;
+      if (manual) toast('Market prices updated');
     } catch (err) {
       console.error(err);
-      renderStats([{ label: 'TVL', value: '—' }, { label: '24h Volume', value: '—' }, { label: 'Users', value: '—' }]);
-      $('#pairs').replaceChildren(el('p', 'empty', 'Could not load market data.'));
+      setMarketStatus('stale', lastMarketSync ? 'Delayed' : 'Offline');
+      if (lastMarketSync) {
+        marketUpdated.textContent = `Last updated ${formatSyncTime(lastMarketSync)} · Reconnecting…`;
+      } else if (CONFIG.useSampleData) {
+        renderStats(SAMPLE.stats);
+        renderPairs(SAMPLE.pairs);
+        $('#sampleTag').hidden = false;
+        marketUpdated.textContent = 'Showing sample prices · Live feed unavailable';
+      } else {
+        renderStats([{ label: 'TVL', value: '—' }, { label: '24h Volume', value: '—' }, { label: 'Users', value: '—' }]);
+        $('#pairs').replaceChildren(el('p', 'empty', 'Could not load market data.'));
+        marketUpdated.textContent = 'Live feed unavailable · Tap refresh to retry';
+      }
+    } finally {
+      loadingMarkets = false;
+      refreshMarkets.disabled = false;
+      refreshMarkets.classList.remove('is-loading');
+      scheduleMarketSync();
     }
   }
+
+  refreshMarkets.addEventListener('click', () => {
+    haptic();
+    loadData({ manual: true });
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (!lastMarketSync || Date.now() - lastMarketSync.getTime() > CONFIG.marketSyncIntervalMs)) {
+      loadData();
+    }
+  });
   loadData();
 })();

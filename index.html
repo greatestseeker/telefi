@@ -47,8 +47,25 @@
     </section>
 
     <section class="section" aria-labelledby="pairsTitle">
-      <h2 class="section-title" id="pairsTitle">Trending pairs</h2>
-      <div class="pairs" id="pairs"></div>
+      <div class="market-head">
+        <div>
+          <p class="eyebrow">Crypto prices</p>
+          <h2 class="section-title" id="pairsTitle">Live markets</h2>
+        </div>
+        <div class="market-actions">
+          <span class="sync-status" id="marketStatus" role="status" aria-live="polite">
+            <span class="sync-dot" aria-hidden="true"></span>
+            <span id="marketStatusText">Connecting</span>
+          </span>
+          <button class="refresh-btn" id="refreshMarkets" type="button" aria-label="Refresh market prices">
+            <span aria-hidden="true">↻</span>
+          </button>
+        </div>
+      </div>
+      <div class="market-card">
+        <div class="pairs" id="pairs"></div>
+        <p class="market-updated" id="marketUpdated">Waiting for market data…</p>
+      </div>
     </section>
 
     <p class="footnote">Powered by TON · Crypto assets are volatile. Trade at your own risk.</p>
